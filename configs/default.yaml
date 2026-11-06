@@ -1,0 +1,57 @@
+# Default pipeline config. Override any key from the CLI, e.g.
+#   persona train-sft example --set train.base_model=Qwen/Qwen2.5-0.5B-Instruct --set train.epochs=1
+paths:
+  personas_dir: personas
+  data_dir: data        # data/<slug>/*.jsonl
+  output_dir: outputs   # outputs/<slug>/{sft,dpo,eval}
+
+# Writes prompts and in-character answers. This is the bulk of API spend.
+teacher:
+  backend: anthropic          # anthropic | openai (any OpenAI-compatible server) | mock
+  model: claude-sonnet-5-5    # cheaper tier for volume; claude-opus-5-5 for higher quality
+  effort: medium
+  # base_url: http://localhost:8000/v1   # for backend: openai
+
+# Scores conversations for filtering and evaluation. Fewer calls; worth the stronger model.
+judge:
+  backend: anthropic
+  model: claude-opus-5-5
+  effort: medium
+
+data:
+  num_prompts: 2000       # prompt-bank size (before dedup); ~1500-3000 is a good first run
+  prompts_per_call: 25
+  eval_fraction: 0.05     # held out, never trained on
+  max_turns: 3            # max user turns in multi-turn conversations
+  concurrency: 8          # parallel API calls
+  min_score: 4            # keep conversations whose persona AND quality scores are >= this
+
+train:
+  base_model: Qwen/Qwen2.5-7B-Instruct
+  max_seq_length: 2048
+  load_in_4bit: true      # QLoRA; set false for full-precision LoRA on big GPUs / CPU smoke tests
+  lora_r: 16
+  lora_alpha: 32
+  lora_dropout: 0.0
+  epochs: 2
+  learning_rate: 2.0e-4
+  batch_size: 2
+  grad_accum: 8
+  warmup_ratio: 0.03
+  max_steps: -1           # >0 caps training (smoke tests)
+  seed: 42
+  # System turn used in training AND inference. "" stops templates (e.g. Qwen's) from
+  # injecting their own identity; null leaves the template's default in place.
+  default_system: ""
+
+dpo:
+  beta: 0.1
+  learning_rate: 5.0e-6
+  epochs: 1
+  batch_size: 1
+  grad_accum: 8
+  max_steps: -1
+
+eval:
+  num_prompts: 100
+  max_new_tokens: 512
